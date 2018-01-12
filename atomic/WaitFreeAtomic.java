@@ -1,20 +1,32 @@
-package com.psly;
+package java.util.concurrent.atomic;
 
 import java.lang.reflect.Field;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import sun.misc.Unsafe;
 
 public class WaitFreeAtomic {
-	public final static int N = 1000;
-	public final static int loops = 100000;
-	public final static int MAX = 64;
+	public final static int N = 2;
+	public final static int loops = 50000000;
+	public static int MAX = 4301;
+	public final static int STEPS = 0;
 	public final static int bigYields = 32;
+	public final static AtomicInteger inter= new AtomicInteger();
+	public final static Map<Integer, Integer> mapMaxTims = new HashMap<Integer, Integer>();
 	public final static int[] ints = new int[N * loops];
 //	private final static AtomicInteger inter = new AtomicInteger();
 	public static void main(String[] args) throws InterruptedException {
 		int errTimes = 0;
 		for(int k = 0; ;) {
+			ato.set(0);
+			if(inter.get() != 0) {
+				mapMaxTims.put(MAX, inter.get());
+				MAX += 1;
+				inter.set(0);
+			}
 			valueObj = new ValueObj(0, null);
 			for(int j = 0; j < N * loops; ++j) 
 				ints[j] = 0;
@@ -22,7 +34,7 @@ public class WaitFreeAtomic {
 			Thread[] threads = new Thread[N];
 			for(int i = 0; i < N; ++i) {
 				threadObjs[i] = new ThreadObj(null);
-				states[i] = new StateObj(1);
+				states[i] = new StateObj(STEPS);
 				int threadId = i;
 				(threads[i] = new Thread(){
 					public void run(){
@@ -33,8 +45,15 @@ public class WaitFreeAtomic {
 							e.printStackTrace();
 						}
 						
-						for(int j = 0; j < loops; ++j)
+						for(int j = 0; j < loops; ++j) {
 							ints[getAndIncrement(threadId)] = 1;
+/*							try {
+								Thread.sleep(1);
+							} catch (InterruptedException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}*/
+						}
 					}
 				}).start();
 			}
@@ -49,9 +68,9 @@ public class WaitFreeAtomic {
 					++errTimes;
 				}
 			}
-			System.out.println("wrongTimes: " + errTimes);
+			System.out.println("wrongTimes: " + errTimes + " MAX-TIMES: " + MAX + "-" + inter.get());
 			System.out.println("times " + (++k) + " costTime: " + ((System.currentTimeMillis() - start) / 1000.0) + " seconds");
-			Thread.sleep(1000);
+			Thread.sleep(2000);
 		}
 	}
 	final static boolean casValueObj(ValueObj cmp, ValueObj val) {
@@ -124,6 +143,11 @@ public class WaitFreeAtomic {
 		boolean casWrapValue(WrapperObj cmp, WrapperObj val) {
 			return UNSAFE.compareAndSwapObject(this, wrapValueOffset, cmp, val);
 		}
+		
+		void putWrapValueVolatile(WrapperObj val) {
+			UNSAFE.putObjectVolatile(this, wrapValueOffset, val);
+		}
+		
 		private static final sun.misc.Unsafe UNSAFE;
 		private static final long wrapValueOffset;
 		static {
@@ -160,6 +184,12 @@ public class WaitFreeAtomic {
 		
 	}
 	
+	public static AtomicInteger ato = new AtomicInteger();
+	public static int getAndIncrementFast(int index) {
+		//Thread.yield();
+		return ato.getAndIncrement();
+	}
+	
     public static int getAndIncrement(int index) {
         //fast-path， 最多MAX次。
         int count = MAX;
@@ -187,6 +217,7 @@ public class WaitFreeAtomic {
                 break;
         }
 //        System.out.println("here " + inter.incrementAndGet());
+        inter.incrementAndGet();
         for(int j = 0; j < bigYields; ++j)
             Thread.yield();
         
@@ -243,7 +274,9 @@ public class WaitFreeAtomic {
         //step2: 先完成ThreadObj的状态迁移，WrapperObj(valueObj，true)分别表示(值，完成)，原子地将这两个值喂给threadObj。
         if(!wrapperObj.isFinish) {
             ThreadObj.WrapperObj wrapValueFiniash = new ThreadObj.WrapperObj(valueObj_, true);
-            valueObj_.threadObj.casWrapValue(wrapperObj, wrapValueFiniash);
+             valueObj_.threadObj.casWrapValue(wrapperObj, wrapValueFiniash);
+            // or
+            //valueObj_.threadObj.putWrapValueVolatile(wrapValueFiniash);
         }
         //step3: 最后完成ValueObj上的状态迁移
         helpValueTransfer(valueObj_);
