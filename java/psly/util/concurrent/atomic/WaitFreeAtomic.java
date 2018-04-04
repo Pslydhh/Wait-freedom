@@ -1,4 +1,4 @@
-package java.psly.util.concurrent.atomic;
+package psly.util.concurrent.atomic;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
@@ -9,9 +9,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import sun.misc.Unsafe;
 
 public class WaitFreeAtomic {
-	public final static int N = 2;
-	public final static int loops = 50000000;
-	public static int MAX = 4301;
+	public final static int N = 100;
+	public final static int loops = 100000;
+	public static int MAX = 50;
 	public final static int STEPS = 0;
 	public final static int bigYields = 32;
 	public final static AtomicInteger inter= new AtomicInteger();
@@ -191,7 +191,7 @@ public class WaitFreeAtomic {
 	}
 	
     public static int getAndIncrement(int index) {
-        //fast-path£¬ ×î¶àMAX´Î¡£
+        //fast-pathï¼Œ æœ€å¤šMAXæ¬¡ã€‚
         int count = MAX;
         for(;;) {
             ValueObj valueObj_ = valueObj;
@@ -199,11 +199,11 @@ public class WaitFreeAtomic {
                 ValueObj valueObjNext = new ValueObj(valueObj_.value + 1, null);
                 if(casValueObj(valueObj_, valueObjNext)) {
                     StateObj myState = states[index];
-                    //Ç°½øÒ»²½£¬Ã¿assistStep£¬³¢ÊÔÒ»¸ö°ïÖú¡£
+                    //å‰è¿›ä¸€æ­¥ï¼Œæ¯assistStepï¼Œå°è¯•ä¸€ä¸ªå¸®åŠ©ã€‚
                     if(((++myState.steps) & myState.assistStep) == 0){
                         long helpThread = myState.index;
                         help(helpThread);
-                        //ÏÂÒ»¸öĞ­ÖúµÄ¶ÔÏó¡£
+                        //ä¸‹ä¸€ä¸ªååŠ©çš„å¯¹è±¡ã€‚
                         ++myState.index;
                     }
                     return valueObj_.value;
@@ -221,31 +221,31 @@ public class WaitFreeAtomic {
         for(int j = 0; j < bigYields; ++j)
             Thread.yield();
         
-        //slow-path£¬½«×Ô¼ºÁĞÎª±»°ïÖú¶ÔÏó¡£
+        //slow-pathï¼Œå°†è‡ªå·±åˆ—ä¸ºè¢«å¸®åŠ©å¯¹è±¡ã€‚
         ThreadObj myselfObj = new ThreadObj(new ThreadObj.WrapperObj(null, false));
         setThreadObj(index, myselfObj);
-        //¿ªÊ¼°ïÖú×Ô¼º
+        //å¼€å§‹å¸®åŠ©è‡ªå·±
         ValueObj result = help(index);
         setThreadObj(index, null);
         return result.value;
     }
     
-    // valueObj->threadObj->wrapperObj->valueObj¡£
-    // step 1-3£¬Ã¿Ò»¸ö²½Öè¶¼²»»á×èÈûÆäËû²½Öè¡£
-    // ÑÏ¸ñ×ñÊØÒÔÏÂË³Ğò: 
-    // step 1: Í¨¹ı½«ValueObjÖ¸ÏòThreadObj:
-    //         atomic: (value, null)->(value, ThreadObj)À´Ãª¶¨¸ÃÖµ                      //È·¶¨¸Ãvalue¹éThreadObj¶ÔÓ¦Ïß³ÌËùÓĞ¡£
-    // step 2: Í¨¹ı½«ThreadObj°ü¹üµÄWrapperObj£¬
-    //         atomic: ´Ó(null, false)¸üĞÂÎª(valueObj, true)À´¸üĞÂ×´Ì¬µÄÍ¬Ê±´«µİvalue    //¶ÔÓ¦Ïß³ÌÍ¨¹ıisFinishÅĞ¶¨²Ù×÷ÒÑÍê³É¡£
-    // step 3: ¸üĞÂValueObj£¬ÌáÉıvalue£¬Í¬Ê±ÉèÖÃThreadObjÎªnull£º
-    //         atomic: (value, ThreadObj)->(value+1, null)Íê³ÉÊÕÎ²¶¯×÷                 //´ËÊ±valueÖµ»Øµ½ÁËÃ»ÓĞ±»Ïß³ÌÃª¶¨µÄ×´Ì¬£¬Ò²¿ÉÒÔ¿´×östep1Ö®Ç°µÄ×´Ì¬¡£
+    // valueObj->threadObj->wrapperObj->valueObjã€‚
+    // step 1-3ï¼Œæ¯ä¸€ä¸ªæ­¥éª¤éƒ½ä¸ä¼šé˜»å¡å…¶ä»–æ­¥éª¤ã€‚
+    // ä¸¥æ ¼éµå®ˆä»¥ä¸‹é¡ºåº: 
+    // step 1: é€šè¿‡å°†ValueObjæŒ‡å‘ThreadObj:
+    //         atomic: (value, null)->(value, ThreadObj)æ¥é”šå®šè¯¥å€¼                      //ç¡®å®šè¯¥valueå½’ThreadObjå¯¹åº”çº¿ç¨‹æ‰€æœ‰ã€‚
+    // step 2: é€šè¿‡å°†ThreadObjåŒ…è£¹çš„WrapperObjï¼Œ
+    //         atomic: ä»(null, false)æ›´æ–°ä¸º(valueObj, true)æ¥æ›´æ–°çŠ¶æ€çš„åŒæ—¶ä¼ é€’value    //å¯¹åº”çº¿ç¨‹é€šè¿‡isFinishåˆ¤å®šæ“ä½œå·²å®Œæˆã€‚
+    // step 3: æ›´æ–°ValueObjï¼Œæå‡valueï¼ŒåŒæ—¶è®¾ç½®ThreadObjä¸ºnullï¼š
+    //         atomic: (value, ThreadObj)->(value+1, null)å®Œæˆæ”¶å°¾åŠ¨ä½œ                 //æ­¤æ—¶valueå€¼å›åˆ°äº†æ²¡æœ‰è¢«çº¿ç¨‹é”šå®šçš„çŠ¶æ€ï¼Œä¹Ÿå¯ä»¥çœ‹åšstep1ä¹‹å‰çš„çŠ¶æ€ã€‚
     private static ValueObj help(long helpIndex) {
         helpIndex = helpIndex % N;
         ThreadObj helpObj = getThreadObj(helpIndex);
         ThreadObj.WrapperObj wrapperObj;
         if(helpObj == null || helpObj.wrapperObj == null)
             return null;
-        //ÅĞ¶¨¾ä£¬ÊÇ·ñ¸ÃÏß³Ì¶ÔÓ¦µÄ²Ù×÷Î´Íê³É£¬(ÏÈÈ¡valueObj£¬ÔÙÈ¡isFinish£¬ÕâºÜÖØÒª)¡£
+        //åˆ¤å®šå¥ï¼Œæ˜¯å¦è¯¥çº¿ç¨‹å¯¹åº”çš„æ“ä½œæœªå®Œæˆï¼Œ(å…ˆå–valueObjï¼Œå†å–isFinishï¼Œè¿™å¾ˆé‡è¦)ã€‚
         ValueObj valueObj_ = valueObj;
         while(!(wrapperObj = helpObj.wrapperObj).isFinish) {
             /*ValueObj valueObj_ = valueObj;*/
@@ -256,29 +256,29 @@ public class WaitFreeAtomic {
                     valueObj_ = valueObj;
                     continue;
                 }
-                //step1: Ãª¶¨¸ÃValueObj£¬½ÓÏÂÀ´ËùÓĞ¿´µ½¸ÃvalueObjµÄÏß³Ì£¬¶¼»áÒ»ÖÂµØÍê³ÉÒ»ÏµÁĞ²Ù×÷.
+                //step1: é”šå®šè¯¥ValueObjï¼Œæ¥ä¸‹æ¥æ‰€æœ‰çœ‹åˆ°è¯¥valueObjçš„çº¿ç¨‹ï¼Œéƒ½ä¼šä¸€è‡´åœ°å®Œæˆä¸€ç³»åˆ—æ“ä½œ.
                 valueObj_ = intermediateObj;
             }
-            //Íê³ÉValueObj¡¢ThreadObjÖĞµÄWrapperObjµÄ×´Ì¬Ç¨ÒÆ¡£
+            //å®ŒæˆValueObjã€ThreadObjä¸­çš„WrapperObjçš„çŠ¶æ€è¿ç§»ã€‚
             helpTransfer(valueObj_);
             valueObj_ = valueObj;
         }
         valueObj_ = wrapperObj.value;
         helpValueTransfer(valueObj_);
-        //·µ»ØÃª¶¨µÄvalueObj¡£
+        //è¿”å›é”šå®šçš„valueObjã€‚
         return valueObj_;
     }
     
     private static void helpTransfer(ValueObj valueObj_) {
         ThreadObj.WrapperObj wrapperObj = valueObj_.threadObj.wrapperObj;
-        //step2: ÏÈÍê³ÉThreadObjµÄ×´Ì¬Ç¨ÒÆ£¬WrapperObj(valueObj£¬true)·Ö±ğ±íÊ¾(Öµ£¬Íê³É)£¬Ô­×ÓµØ½«ÕâÁ½¸öÖµÎ¹¸øthreadObj¡£
+        //step2: å…ˆå®ŒæˆThreadObjçš„çŠ¶æ€è¿ç§»ï¼ŒWrapperObj(valueObjï¼Œtrue)åˆ†åˆ«è¡¨ç¤º(å€¼ï¼Œå®Œæˆ)ï¼ŒåŸå­åœ°å°†è¿™ä¸¤ä¸ªå€¼å–‚ç»™threadObjã€‚
         if(!wrapperObj.isFinish) {
             ThreadObj.WrapperObj wrapValueFiniash = new ThreadObj.WrapperObj(valueObj_, true);
              valueObj_.threadObj.casWrapValue(wrapperObj, wrapValueFiniash);
             // or
             //valueObj_.threadObj.putWrapValueVolatile(wrapValueFiniash);
         }
-        //step3: ×îºóÍê³ÉValueObjÉÏµÄ×´Ì¬Ç¨ÒÆ
+        //step3: æœ€åå®ŒæˆValueObjä¸Šçš„çŠ¶æ€è¿ç§»
         helpValueTransfer(valueObj_);
     }
     
